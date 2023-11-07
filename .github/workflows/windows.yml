@@ -30,7 +30,7 @@ jobs:
 
     - name: Configure and build
       run: |
-        meson setup builddir
+        meson setup builddir --buildtype release
         meson compile -C builddir
 
     - name: Upload
