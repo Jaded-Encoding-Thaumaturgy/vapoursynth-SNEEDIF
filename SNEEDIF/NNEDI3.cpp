@@ -100,6 +100,7 @@ static const VSFrame *VS_CC nnedi3GetFrame(
     NNEDI3Data *d = static_cast<NNEDI3Data *>(instanceData);
 
     if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(d->field > 1 ? n / 2 : n, d->prop_node, frameCtx);
         vsapi->requestFrameFilter(d->field > 1 ? n / 2 : n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         auto threadId = std::this_thread::get_id();
@@ -159,8 +160,10 @@ static const VSFrame *VS_CC nnedi3GetFrame(
             }
         }
 
+        const VSFrame *prop_src = vsapi->getFrameFilter(d->field > 1 ? n / 2 : n, d->prop_node, frameCtx);
         const VSFrame *src = vsapi->getFrameFilter(d->field > 1 ? n / 2 : n, d->node, frameCtx);
-        VSFrame *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src, core);
+
+        VSFrame *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, prop_src, core);
 
         int field = d->field;
         if (field > 1)
@@ -218,8 +221,8 @@ static const VSFrame *VS_CC nnedi3GetFrame(
             }
         }
 
-        int64_t sar_num = 0;
-        int64_t sar_den = 0;
+        int64_t sar_num = 1;
+        int64_t sar_den = 1;
 
         if (vsapi->mapNumElements(props, "_SARNum") > 0)
             sar_num = vsapi->mapGetInt(props, "_SARNum", 0, nullptr);
@@ -266,9 +269,9 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     int err;
     VSFilterGetFrame getFrame;
 
-    d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
+    d->node = d->prop_node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 
-    d->vi = *vsapi->getVideoInfo(d->node);
+    d->vi = *vsapi->getVideoInfo(d->prop_node);
 
     try {
         if (!vsh::isConstantVideoFormat(&d->vi))
@@ -282,7 +285,7 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 
         if (dw || dh) {
             VSMap *args = vsapi->createMap();
-            vsapi->mapConsumeNode(args, "clip", d->node, maReplace);
+            vsapi->mapSetNode(args, "clip", d->prop_node, maReplace);
             vsapi->mapSetInt(args, "width", d->vi.width + (8 * dw), maReplace);
             vsapi->mapSetInt(args, "height", d->vi.height + (8 * dh), maReplace);
             vsapi->mapSetFloat(args, "src_width", d->vi.width + (8 * dw), maReplace);
@@ -757,8 +760,9 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     }
 
     VSFilterDependency deps[] = {
-        {d->node, rpGeneral}
+        {d->node, rpGeneral},
+        {d->prop_node, rpGeneral},
     };
-    vsapi->createVideoFilter(out, "NNEDI3", &d->vi, getFrame, nnedi3Free, fmParallel, deps, 1, d.get(), core);
+    vsapi->createVideoFilter(out, "NNEDI3", &d->vi, getFrame, nnedi3Free, fmParallel, deps, 2, d.get(), core);
     d.release();
 }

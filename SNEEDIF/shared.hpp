@@ -39,6 +39,7 @@
 namespace compute = boost::compute;
 
 struct NNEDI3Data {
+        VSNode *prop_node;
         VSNode *node;
         VSVideoInfo vi;
         int field;
