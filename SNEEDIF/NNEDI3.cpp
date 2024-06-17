@@ -35,7 +35,8 @@ static void filter(
             T *VS_RESTRICT dstp = reinterpret_cast<T *>(vsapi->getWritePtr(dst, plane));
 
             constexpr size_t localWorkSize[] = { 4, 16 };
-            const int shiftY = (dh || dw) ? (plane ? 2 : 4) : 0;
+            const int shiftY = (dh || dw) ? (2 * (1 << (plane ? d->vi.format.subSamplingH : 0))) : 0;
+            const int shiftX = (dh || dw) ? (2 * (1 << (plane ? d->vi.format.subSamplingW : 0))) : 0;
 
             queue.enqueue_write_image(
                 srcImage, compute::dim(0, 0), compute::dim(srcWidth, srcHeight), srcp, vsapi->getStride(src, plane)
@@ -45,7 +46,7 @@ static void filter(
                 if constexpr (transpose_first) {
                     kernel.set_args(
                         srcImage, tmpImage, d->weights0, d->weights1, srcHeight, srcWidth, srcHeight, dstWidth, field_n,
-                        1 - field_n, -1, shiftY
+                        1 - field_n, -1, shiftX
                     );
                 } else {
                     kernel.set_args(
@@ -64,7 +65,7 @@ static void filter(
                 } else {
                     kernel.set_args(
                         tmpImage, dstImage, d->weights0, d->weights1, dstHeight, srcWidth, dstHeight, dstWidth, field_n,
-                        1 - field_n, -1, shiftY
+                        1 - field_n, -1, shiftX
                     );
                 }
 
@@ -73,7 +74,7 @@ static void filter(
                 if constexpr (dw) {
                     kernel.set_args(
                         srcImage, dstImage, d->weights0, d->weights1, srcHeight, srcWidth, dstHeight, dstWidth, field_n,
-                        1 - field_n, -1, shiftY
+                        1 - field_n, -1, shiftX
                     );
                 } else {
                     kernel.set_args(
