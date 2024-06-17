@@ -4,7 +4,8 @@
             "name": "Win32",
             "includePath": [
                 "${default}",
-                "C:/msys64/mingw64/include"
+                "C:/msys64/mingw64/include",
+                "E:/Cache/Repositories/vapoursynth/include"
             ],
             "defines": [
                 "_DEBUG",
