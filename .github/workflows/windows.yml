@@ -19,7 +19,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 1
 
@@ -35,7 +35,7 @@ jobs:
         meson compile -C builddir
 
     - name: Upload
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: SNEEDIF-win64
         path: builddir/libsneedif.dll
