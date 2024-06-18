@@ -33,6 +33,7 @@ jobs:
           gcc:p
           vapoursynth:p
           boost:p
+          opencl-headers:p
           opencl-icd:p
 
     - name: Configure and build
