@@ -19,7 +19,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 1
 
@@ -27,7 +27,14 @@ jobs:
       with:
         msystem: mingw64
         update: true
-        install: mingw-w64-x86_64-cmake mingw-w64-x86_64-meson mingw-w64-x86_64-gcc mingw-w64-x86_64-vapoursynth mingw-w64-x86_64-boost mingw-w64-x86_64-opencl-icd
+        pacboy: >-
+          cmake:p
+          meson:p
+          gcc:p
+          vapoursynth:p
+          boost:p
+          opencl-headers:p
+          opencl-icd:p
 
     - name: Configure and build
       run: |
@@ -35,7 +42,11 @@ jobs:
         meson compile -C builddir
 
     - name: Upload
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: SNEEDIF-win64
         path: builddir/libsneedif.dll
+
+    - name: Dump Meson Debug Info
+      if: failure()
+      run: cat builddir/meson-logs/meson-log.txt
