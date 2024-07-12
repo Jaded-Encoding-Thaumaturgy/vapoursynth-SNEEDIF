@@ -35,8 +35,8 @@ static void filter(
             T *VS_RESTRICT dstp = reinterpret_cast<T *>(vsapi->getWritePtr(dst, plane));
 
             constexpr size_t localWorkSize[] = { 4, 16 };
-            const int shiftY = (dh || dw) ? (2 * (1 << (plane ? d->vi.format.subSamplingH : 0))) : 0;
-            const int shiftX = (dh || dw) ? (2 * (1 << (plane ? d->vi.format.subSamplingW : 0))) : 0;
+            const int shiftY = dh ? (2 * (1 << (plane ? 0 : d->vi.format.subSamplingH))) : 0;
+            const int shiftX = dw ? (2 * (1 << (plane ? 0 : d->vi.format.subSamplingW))) : 0;
 
             queue.enqueue_write_image(
                 srcImage, compute::dim(0, 0), compute::dim(srcWidth, srcHeight), srcp, vsapi->getStride(src, plane)
