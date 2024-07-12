@@ -222,21 +222,7 @@ static const VSFrame *VS_CC nnedi3GetFrame(
             }
         }
 
-        int64_t sar_num = 1;
-        int64_t sar_den = 1;
-
-        if (vsapi->mapNumElements(props, "_SARNum") > 0)
-            sar_num = vsapi->mapGetInt(props, "_SARNum", 0, nullptr);
-
-        if (vsapi->mapNumElements(props, "_SARDen") > 0)
-            sar_den = vsapi->mapGetInt(props, "_SARDen", 0, nullptr);
-
-        vsh::muldivRational(&sar_num, &sar_den, d->vi.width, d->vi.width + 8);
-        vsh::muldivRational(&sar_num, &sar_den, d->vi.height + 8, d->vi.height);
-
         vsapi->mapSetInt(props, "_FieldBased", 0, maReplace);
-        vsapi->mapSetInt(props, "_SARNum", sar_num, maReplace);
-        vsapi->mapSetInt(props, "_SARDen", sar_den, maReplace);
 
         vsapi->freeFrame(src);
         return dst;
