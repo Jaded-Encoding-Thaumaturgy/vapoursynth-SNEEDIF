@@ -11,7 +11,7 @@ void add_member_int(const VSAPI *vsapi, VSMap *map, const char *key, int64_t val
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin(
         "dev.setsugen.sneedif", "sneedif", "Setsugen No Ensemble of Edge Directed Interpolation Functions",
-        VS_MAKE_VERSION(2, 0), VAPOURSYNTH_API_VERSION, 0, plugin
+        VS_MAKE_VERSION(3, 0), VAPOURSYNTH_API_VERSION, 0, plugin
     );
 
     vspapi->registerFunction(
