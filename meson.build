@@ -48,6 +48,5 @@ endif
 
 shared_module('sneedif', sources,
   dependencies : deps,
-  link_args: ['-static'],
   gnu_symbol_visibility : 'hidden'
 )
