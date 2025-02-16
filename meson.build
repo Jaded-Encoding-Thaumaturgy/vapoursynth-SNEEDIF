@@ -29,7 +29,7 @@ sources = [
 
 vapoursynth_dep = dependency('vapoursynth').partial_dependency(compile_args : true, includes : true)
 
-boost_dep = dependency('boost', modules : ['filesystem', 'system'], static : true)
+boost_dep = dependency('boost', modules : ['filesystem'], static : true)
 
 opencl_dep = dependency('OpenCL', required : false)
 if not opencl_dep.found()
