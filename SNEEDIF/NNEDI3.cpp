@@ -46,12 +46,12 @@ static void filter(
             if constexpr (dh && dw) {
                 if constexpr (transpose_first) {
                     kernel.set_args(
-                        srcImage, tmpImage, d->weights0, d->weights1, srcHeight, srcWidth, srcHeight, dstWidth, field_n,
+                        srcImage, tmpImage, d->weights0, d->weights1.get(), srcHeight, srcWidth, srcHeight, dstWidth, field_n,
                         1 - field_n, -1, shiftX
                     );
                 } else {
                     kernel.set_args(
-                        srcImage, tmpImage, d->weights0, d->weights1, srcWidth, srcHeight, srcWidth, dstHeight, field_n,
+                        srcImage, tmpImage, d->weights0, d->weights1.get(), srcWidth, srcHeight, srcWidth, dstHeight, field_n,
                         1 - field_n, 0, shiftY
                     );
                 }
@@ -60,12 +60,12 @@ static void filter(
 
                 if constexpr (transpose_first) {
                     kernel.set_args(
-                        tmpImage, dstImage, d->weights0, d->weights1, dstWidth, srcHeight, dstWidth, dstHeight, field_n,
+                        tmpImage, dstImage, d->weights0, d->weights1.get(), dstWidth, srcHeight, dstWidth, dstHeight, field_n,
                         1 - field_n, 0, shiftY
                     );
                 } else {
                     kernel.set_args(
-                        tmpImage, dstImage, d->weights0, d->weights1, dstHeight, srcWidth, dstHeight, dstWidth, field_n,
+                        tmpImage, dstImage, d->weights0, d->weights1.get(), dstHeight, srcWidth, dstHeight, dstWidth, field_n,
                         1 - field_n, -1, shiftX
                     );
                 }
@@ -74,12 +74,12 @@ static void filter(
             } else {
                 if constexpr (dw) {
                     kernel.set_args(
-                        srcImage, dstImage, d->weights0, d->weights1, srcHeight, srcWidth, dstHeight, dstWidth, field_n,
+                        srcImage, dstImage, d->weights0, d->weights1.get(), srcHeight, srcWidth, dstHeight, dstWidth, field_n,
                         1 - field_n, -1, shiftX
                     );
                 } else {
                     kernel.set_args(
-                        srcImage, dstImage, d->weights0, d->weights1, srcWidth, srcHeight, dstWidth, dstHeight, field_n,
+                        srcImage, dstImage, d->weights0, d->weights1.get(), srcWidth, srcHeight, dstWidth, dstHeight, field_n,
                         1 - field_n, 0, shiftY
                     );
                 }
@@ -102,8 +102,8 @@ static const VSFrame *VS_CC nnedi3GetFrame(
     NNEDI3Data *d = static_cast<NNEDI3Data *>(instanceData);
 
     if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(d->field > 1 ? n / 2 : n, d->prop_node, frameCtx);
-        vsapi->requestFrameFilter(d->field > 1 ? n / 2 : n, d->node, frameCtx);
+        vsapi->requestFrameFilter(d->field > 1 ? n / 2 : n, d->prop_node.get(), frameCtx);
+        vsapi->requestFrameFilter(d->field > 1 ? n / 2 : n, d->node.get(), frameCtx);
     } else if (activationReason == arAllFramesReady) {
         auto threadId = std::this_thread::get_id();
 
@@ -162,10 +162,10 @@ static const VSFrame *VS_CC nnedi3GetFrame(
             }
         }
 
-        const VSFrame *prop_src = vsapi->getFrameFilter(d->field > 1 ? n / 2 : n, d->prop_node, frameCtx);
-        const VSFrame *src = vsapi->getFrameFilter(d->field > 1 ? n / 2 : n, d->node, frameCtx);
+        std::unique_ptr<const VSFrame, decltype(vsapi->freeFrame)> prop_src(vsapi->getFrameFilter(d->field > 1 ? n / 2 : n, d->prop_node.get(), frameCtx), vsapi->freeFrame);
+        std::unique_ptr<const VSFrame, decltype(vsapi->freeFrame)> src(vsapi->getFrameFilter(d->field > 1 ? n / 2 : n, d->node.get(), frameCtx), vsapi->freeFrame);
 
-        VSFrame *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, prop_src, core);
+        std::unique_ptr<VSFrame, decltype(vsapi->freeFrame)> dst(vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, prop_src.get(), core), vsapi->freeFrame);
 
         int field = d->field;
         if (field > 1)
@@ -173,7 +173,7 @@ static const VSFrame *VS_CC nnedi3GetFrame(
 
         int err;
         const int fieldBased =
-            vsh::int64ToIntS(vsapi->mapGetInt(vsapi->getFramePropertiesRO(src), "_FieldBased", 0, &err));
+            vsh::int64ToIntS(vsapi->mapGetInt(vsapi->getFramePropertiesRO(src.get()), "_FieldBased", 0, &err));
         if (fieldBased == 1)
             field = 0;
         else if (fieldBased == 2)
@@ -192,25 +192,23 @@ static const VSFrame *VS_CC nnedi3GetFrame(
         try {
             if (d->vi.format.sampleType == stFloat) {
                 if (d->vi.format.bytesPerSample == 2)
-                    filter<half, dw, dh, transpose_first>(src, dst, field_n, d, vsapi);
+                    filter<half, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, vsapi);
                 else if (d->vi.format.bytesPerSample == 4)
-                    filter<float, dw, dh, transpose_first>(src, dst, field_n, d, vsapi);
+                    filter<float, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, vsapi);
             } else {
                 if (d->vi.format.bytesPerSample == 1)
-                    filter<uint8_t, dw, dh, transpose_first>(src, dst, field_n, d, vsapi);
+                    filter<uint8_t, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, vsapi);
                 else if (d->vi.format.bytesPerSample == 2)
-                    filter<uint16_t, dw, dh, transpose_first>(src, dst, field_n, d, vsapi);
+                    filter<uint16_t, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, vsapi);
                 else if (d->vi.format.bytesPerSample == 2)
-                    filter<uint32_t, dw, dh, transpose_first>(src, dst, field_n, d, vsapi);
+                    filter<uint32_t, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, vsapi);
             }
         } catch (const compute::opencl_error &error) {
             vsapi->setFilterError(("NNEDI3: " + error.error_string()).c_str(), frameCtx);
-            vsapi->freeFrame(src);
-            vsapi->freeFrame(dst);
             return nullptr;
         }
 
-        VSMap *props = vsapi->getFramePropertiesRW(dst);
+        VSMap *props = vsapi->getFramePropertiesRW(dst.get());
 
         if (d->field > 1) {
             int errNum, errDen;
@@ -225,31 +223,14 @@ static const VSFrame *VS_CC nnedi3GetFrame(
 
         vsapi->mapSetInt(props, "_FieldBased", 0, maReplace);
 
-        vsapi->freeFrame(src);
-        return dst;
+        return dst.release();
     }
 
     return nullptr;
 }
 
 static void VS_CC nnedi3Free(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    NNEDI3Data *d = static_cast<NNEDI3Data *>(instanceData);
-
-    vsapi->freeNode(d->node);
-
-    clReleaseMemObject(d->weights1);
-
-    d->queue.clear();
-    d->kernel.clear();
-    d->src.clear();
-    d->dst.clear();
-    d->tmp.clear();
-
-    clReleaseDevice(d->device.id());
-
-    delete[] d->globalWorkSize;
-
-    delete d;
+    std::unique_ptr<NNEDI3Data> d(reinterpret_cast<NNEDI3Data *>(instanceData));
 }
 
 void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -257,9 +238,10 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     int err;
     VSFilterGetFrame getFrame;
 
-    d->node = d->prop_node = vsapi->mapGetNode(in, "clip", 0, nullptr);
+    d->node = { vsapi->mapGetNode(in, "clip", 0, nullptr), vsapi->freeNode };
+    d->prop_node = { vsapi->addNodeRef(d->node.get()), vsapi->freeNode };
 
-    d->vi = *vsapi->getVideoInfo(d->prop_node);
+    d->vi = *vsapi->getVideoInfo(d->prop_node.get());
 
     try {
         if (!vsh::isConstantVideoFormat(&d->vi))
@@ -272,26 +254,22 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
         bool transpose_first = !!vsapi->mapGetInt(in, "transpose_first", 0, &err);
 
         if (dw || dh) {
-            VSMap *args = vsapi->createMap();
-            vsapi->mapSetNode(args, "clip", d->prop_node, maReplace);
-            vsapi->mapSetInt(args, "width", d->vi.width + (8 * dw), maReplace);
-            vsapi->mapSetInt(args, "height", d->vi.height + (8 * dh), maReplace);
-            vsapi->mapSetFloat(args, "src_width", d->vi.width + (8 * dw), maReplace);
-            vsapi->mapSetFloat(args, "src_height", d->vi.height + (8 * dh), maReplace);
-            vsapi->mapSetFloat(args, "src_left", -4 * dw, maReplace);
-            vsapi->mapSetFloat(args, "src_top", -4 * dh, maReplace);
+            std::unique_ptr<VSMap, decltype(vsapi->freeMap)> args(vsapi->createMap(), vsapi->freeMap);
+            vsapi->mapSetNode(args.get(), "clip", d->prop_node.get(), maReplace);
+            vsapi->mapSetInt(args.get(), "width", d->vi.width + (8 * dw), maReplace);
+            vsapi->mapSetInt(args.get(), "height", d->vi.height + (8 * dh), maReplace);
+            vsapi->mapSetFloat(args.get(), "src_width", d->vi.width + (8 * dw), maReplace);
+            vsapi->mapSetFloat(args.get(), "src_height", d->vi.height + (8 * dh), maReplace);
+            vsapi->mapSetFloat(args.get(), "src_left", -4 * dw, maReplace);
+            vsapi->mapSetFloat(args.get(), "src_top", -4 * dh, maReplace);
 
-            VSMap *ret = vsapi->invoke(vsapi->getPluginByID(VSH_RESIZE_PLUGIN_ID, core), "Point", args);
-            if (vsapi->mapGetError(ret)) {
-                vsapi->mapSetError(out, vsapi->mapGetError(ret));
-                vsapi->freeMap(args);
-                vsapi->freeMap(ret);
+            std::unique_ptr<VSMap, decltype(vsapi->freeMap)> ret(vsapi->invoke(vsapi->getPluginByID(VSH_RESIZE_PLUGIN_ID, core), "Point", args.get()), vsapi->freeMap);
+            if (vsapi->mapGetError(ret.get())) {
+                vsapi->mapSetError(out, vsapi->mapGetError(ret.get()));
                 return;
             }
 
-            d->node = vsapi->mapGetNode(ret, "clip", 0, nullptr);
-            vsapi->freeMap(args);
-            vsapi->freeMap(ret);
+            d->node = { vsapi->mapGetNode(ret.get(), "clip", 0, nullptr), vsapi->freeNode };
         }
 
         const int m = vsapi->mapNumElements(in, "planes");
@@ -451,12 +429,12 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 
         std::rewind(weightsFile);
 
-        float *bdata = reinterpret_cast<float *>(malloc(correctSize));
-        const size_t bytesRead = std::fread(bdata, 1, correctSize, weightsFile);
+        std::vector<uint8_t> bdata_raw(correctSize);
+        const size_t bytesRead = std::fread(bdata_raw.data(), 1, correctSize, weightsFile);
+        const float *bdata = reinterpret_cast<float *>(bdata_raw.data());
 
         if (bytesRead != correctSize) {
             std::fclose(weightsFile);
-            free(bdata);
             throw std::string { "error reading file " + weightsPath + ". Should read " + std::to_string(correctSize) +
                                 " bytes, but read " + std::to_string(bytesRead) + " bytes instead" };
         }
@@ -476,19 +454,19 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
             }
         }
 
-        float *weights0_b = new float[std::max(dims0, dims0new)];
-        float *weights1_b = new float[dims1 * 2];
+        std::vector<float> weights0_b(std::max(dims0, dims0new));
+        std::vector<float> weights1_b(dims1 * 2);
 
         // Adjust prescreener weights
         if (pscrn == 2) {  // using new prescreener
-            int *offt = reinterpret_cast<int *>(calloc(4 * 64, sizeof(int)));
+            std::vector<int> offt(4 * 64);
             for (int j = 0; j < 4; j++) {
                 for (int k = 0; k < 64; k++)
                     offt[j * 64 + k] = ((k >> 3) << 5) + ((j & 3) << 3) + (k & 7);
             }
 
             const float *bdw = bdata + dims0 + dims0new * (pscrn - 2);
-            short *ws = reinterpret_cast<short *>(weights0_b);
+            short *ws = reinterpret_cast<short *>(weights0_b.data());
             float *wf = reinterpret_cast<float *>(&ws[4 * 64]);
             double mean[4] = { 0.0, 0.0, 0.0, 0.0 };
 
@@ -517,7 +495,6 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
             }
 
             memcpy(wf + 4, bdw + 4 * 64, (dims0new - 4 * 64) * sizeof(float));
-            free(offt);
         } else if (pscrn == 1) {  // using old prescreener
             double mean[4] = { 0.0, 0.0, 0.0, 0.0 };
 
@@ -538,17 +515,17 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
                     weights0_b[j * 48 + k] = static_cast<float>((bdata[j * 48 + k] - mean[j]) / half);
             }
 
-            memcpy(weights0_b + 4 * 48, bdata + 4 * 48, (dims0 - 4 * 48) * sizeof(float));
+            memcpy(weights0_b.data() + 4 * 48, bdata + 4 * 48, (dims0 - 4 * 48) * sizeof(float));
         }
 
         // Adjust prediction weights
         for (int i = 0; i < 2; i++) {
             const float *bdataT = bdata + dims0 + dims0new * 3 + dims1tsize * etype + dims1offset + i * dims1;
-            float *weightsT = weights1_b + i * dims1;
+            float *weightsT = &weights1_b[i * dims1];
             const int nnst = nnsTable[nns];
             const int asize = xdiaTable[nsize] * ydiaTable[nsize];
             const int boff = nnst * 2 * asize;
-            double *mean = reinterpret_cast<double *>(calloc(asize + 1 + nnst * 2, sizeof(double)));
+            std::vector<double> mean(asize + 1 + nnst * 2);
 
             // Calculate mean weight of each neuron (ignore bias)
             for (int j = 0; j < nnst * 2; j++) {
@@ -576,11 +553,7 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
                 }
                 weightsT[boff + j] = static_cast<float>(bdataT[boff + j] - (j < nnst ? mean[asize] : 0.0));
             }
-
-            free(mean);
         }
-
-        free(bdata);
 
         const int xdia = xdiaTable[nsize];
         const int ydia = ydiaTable[nsize];
@@ -602,8 +575,8 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
         int dims2 = d->dims1 * 2;
 
         if (float16_weights) {
-            half *weights0_bh = new half[buff0_size];
-            half *weights1_bh = new half[dims2];
+            std::vector<half> weights0_bh(buff0_size);
+            std::vector<half> weights1_bh(dims2);
 
             for (int i = 0; i < buff0_size; i++)
                 weights0_bh[i] = weights0_b[i];
@@ -611,11 +584,11 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
             for (int i = 0; i < dims2; i++)
                 weights1_bh[i] = weights1_b[i];
 
-            d->weights0 = compute::buffer { d->context, buff0_size * sizeof(cl_half), buffer_rw_type, weights0_bh };
-            d->weights1Buffer = compute::buffer { d->context, dims2 * sizeof(cl_half), buffer_rw_type, weights1_bh };
+            d->weights0 = compute::buffer { d->context, buff0_size * sizeof(cl_half), buffer_rw_type, weights0_bh.data() };
+            d->weights1Buffer = compute::buffer { d->context, dims2 * sizeof(cl_half), buffer_rw_type, weights1_bh.data() };
         } else {
-            d->weights0 = compute::buffer { d->context, buff0_size * sizeof(cl_float), buffer_rw_type, weights0_b };
-            d->weights1Buffer = compute::buffer { d->context, dims2 * sizeof(cl_float), buffer_rw_type, weights1_b };
+            d->weights0 = compute::buffer { d->context, buff0_size * sizeof(cl_float), buffer_rw_type, weights0_b.data() };
+            d->weights1Buffer = compute::buffer { d->context, dims2 * sizeof(cl_float), buffer_rw_type, weights1_b.data() };
         }
 
         {
@@ -642,7 +615,7 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
             cl_int error = 0;
 
             d->weights1 = clCreateImage(d->context, 0, &format, &desc, nullptr, &error);
-            if (!d->weights1)
+            if (!d->weights1.get())
                 BOOST_THROW_EXCEPTION(compute::opencl_error(error));
         }
 
@@ -651,8 +624,6 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
                 static_cast<size_t>((x / 8 + 3) & -4), static_cast<size_t>((y + 15) & -16)
             );
         };
-
-        d->globalWorkSize = (size_t **) new size_t[6];
 
         for (int plane = 0; plane < d->vi.format.numPlanes; plane++) {
             int dstWidth = d->vi.width >> (plane ? d->vi.format.subSamplingW : 0);
@@ -673,7 +644,6 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
                     sizes = dw ? get_sizes(dstHeight, dstWidth / 2) : get_sizes(dstWidth, dstHeight / 2);
                 }
 
-                d->globalWorkSize[plane + 3 * i] = new size_t[2];
                 d->globalWorkSize[plane + 3 * i][0] = sizes.first;
                 d->globalWorkSize[plane + 3 * i][1] = sizes.second;
             }
@@ -735,22 +705,19 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
         }
     } catch (const std::string &error) {
         vsapi->mapSetError(out, ("NNEDI3: " + error).c_str());
-        vsapi->freeNode(d->node);
         return;
     } catch (const compute::no_device_found &error) {
         vsapi->mapSetError(out, (std::string { "NNEDI3: " } + error.what()).c_str());
-        vsapi->freeNode(d->node);
         return;
     } catch (const compute::opencl_error &error) {
         vsapi->mapSetError(out, ("NNEDI3: " + error.error_string()).c_str());
-        vsapi->freeNode(d->node);
         return;
     }
 
     VSFilterDependency deps[] = {
-        {d->node, rpGeneral},
-        {d->prop_node, rpGeneral},
+        {d->node.get(), rpGeneral},
+        {d->prop_node.get(), rpGeneral},
     };
-    vsapi->createVideoFilter(out, "NNEDI3", &d->vi, getFrame, nnedi3Free, fmParallel, deps, 2, d.get(), core);
-    d.release();
+    const VSVideoInfo *vi = &d->vi;     // Keep this a seperate statement so we can d.release() below
+    vsapi->createVideoFilter(out, "NNEDI3", vi, getFrame, nnedi3Free, fmParallel, deps, 2, d.release(), core);
 }

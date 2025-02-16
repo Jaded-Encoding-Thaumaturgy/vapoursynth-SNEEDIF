@@ -38,14 +38,42 @@
 #include <boost/compute/utility/dim.hpp>
 namespace compute = boost::compute;
 
+// compute::memory_object is private
+// and we can't use compute::image1d for weights1
+// since that's an IMAGE1D_BUFFER
+class ClMemHolder {
+        cl_mem inner;
+
+public:
+        ClMemHolder() : inner(0) {}
+        ClMemHolder(cl_mem mem) : inner(mem) {}
+
+        ClMemHolder& operator=(ClMemHolder &&other) {
+            if (inner) {
+                clReleaseMemObject(inner);
+            }
+            this->inner = other.inner;
+            other.inner = 0;
+            return *this;
+        }
+
+        cl_mem get() const { return inner; }
+
+        ~ClMemHolder() {
+            if (inner) {
+                clReleaseMemObject(inner);
+            }
+        }
+};
+
 struct NNEDI3Data {
-        VSNode *prop_node;
-        VSNode *node;
+        std::unique_ptr<VSNode, void(*)(VSNode *)> prop_node{nullptr, [](VSNode *){}};
+        std::unique_ptr<VSNode, void(*)(VSNode *)> node{nullptr, [](VSNode *){}};
         VSVideoInfo vi;
         int field;
         bool process[3];
         int dims1, dims0, dims0new;
-        size_t **globalWorkSize;
+        size_t globalWorkSize[6][2];
         compute::device device;
         compute::context context;
         compute::program program;
@@ -53,7 +81,7 @@ struct NNEDI3Data {
         std::unordered_map<std::thread::id, compute::kernel> kernel;
         std::unordered_map<std::thread::id, compute::image2d> src, dst, tmp;
         compute::buffer weights0, weights1Buffer;
-        cl_mem weights1;
+        ClMemHolder weights1;
 };
 
 void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
