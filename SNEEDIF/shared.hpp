@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <locale>
 #include <memory>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -66,6 +67,12 @@ public:
         }
 };
 
+struct PerThreadData {
+    compute::command_queue queue;
+    compute::kernel kernel;
+    compute::image2d src, dst, tmp;
+};
+
 struct NNEDI3Data {
         std::unique_ptr<VSNode, void(*)(VSNode *)> prop_node{nullptr, [](VSNode *){}};
         std::unique_ptr<VSNode, void(*)(VSNode *)> node{nullptr, [](VSNode *){}};
@@ -77,9 +84,8 @@ struct NNEDI3Data {
         compute::device device;
         compute::context context;
         compute::program program;
-        std::unordered_map<std::thread::id, compute::command_queue> queue;
-        std::unordered_map<std::thread::id, compute::kernel> kernel;
-        std::unordered_map<std::thread::id, compute::image2d> src, dst, tmp;
+        std::mutex per_thread_data_mutex;
+        std::unordered_map<std::thread::id, PerThreadData> per_thread_data;
         compute::buffer weights0, weights1Buffer;
         ClMemHolder weights1;
 };
