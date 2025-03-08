@@ -5,6 +5,7 @@
 #include "NNEDI3.cl"
 
 #include "shared.hpp"
+#include <mutex>
 
 static constexpr int numNSIZE = 7;
 static constexpr int numNNS = 5;
@@ -14,15 +15,13 @@ static constexpr int nnsTable[numNNS] = { 16, 32, 64, 128, 256 };
 
 template<typename T, bool dw, bool dh, bool transpose_first>
 static void filter(
-    const VSFrame *src, VSFrame *dst, const int field_n, const NNEDI3Data * const VS_RESTRICT d, const VSAPI *vsapi
+    const VSFrame *src, VSFrame *dst, const int field_n, const NNEDI3Data * const VS_RESTRICT d, PerThreadData* per_thread_data, const VSAPI *vsapi
 ) {
-    auto threadId = std::this_thread::get_id();
-
-    auto queue = d->queue.at(threadId);
-    auto kernel = d->kernel.at(threadId);
-    auto srcImage = d->src.at(threadId);
-    auto dstImage = d->dst.at(threadId);
-    auto tmpImage = d->tmp.at(threadId);
+    auto queue    = per_thread_data->queue;
+    auto kernel   = per_thread_data->kernel;
+    auto srcImage = per_thread_data->src;
+    auto dstImage = per_thread_data->dst;
+    auto tmpImage = per_thread_data->tmp;
 
     for (int plane = 0; plane < d->vi.format.numPlanes; plane++) {
         if (d->process[plane]) {
@@ -107,61 +106,58 @@ static const VSFrame *VS_CC nnedi3GetFrame(
     } else if (activationReason == arAllFramesReady) {
         auto threadId = std::this_thread::get_id();
 
-        if (!d->queue.count(threadId)) {
-            try {
+        PerThreadData* ptd = nullptr;
+        {
+            const std::lock_guard<std::mutex> lock(d->per_thread_data_mutex);
+            if (!d->per_thread_data.count(threadId)) {
+                try {
+                    auto queue = compute::command_queue { d->context, d->device };
 
-                d->queue.emplace(threadId, compute::command_queue { d->context, d->device });
+                    cl_image_format imageFormat { CL_R, CL_SIGNED_INT8 };
 
-                cl_image_format imageFormat { CL_R, CL_SIGNED_INT8 };
+                    if (d->vi.format.sampleType == stInteger) {
+                        if (d->vi.format.bytesPerSample == 1)
+                            imageFormat.image_channel_data_type = CL_UNSIGNED_INT8;
+                        else if (d->vi.format.bytesPerSample == 2)
+                            imageFormat.image_channel_data_type = CL_UNSIGNED_INT16;
+                        else if (d->vi.format.bytesPerSample == 4)
+                            imageFormat.image_channel_data_type = CL_UNSIGNED_INT32;
+                    } else {
+                        if (d->vi.format.bytesPerSample == 2)
+                            imageFormat.image_channel_data_type = CL_HALF_FLOAT;
+                        else if (d->vi.format.bytesPerSample == 4)
+                            imageFormat.image_channel_data_type = CL_FLOAT;
+                    }
 
-                if (d->vi.format.sampleType == stInteger) {
-                    if (d->vi.format.bytesPerSample == 1)
-                        imageFormat.image_channel_data_type = CL_UNSIGNED_INT8;
-                    else if (d->vi.format.bytesPerSample == 2)
-                        imageFormat.image_channel_data_type = CL_UNSIGNED_INT16;
-                    else if (d->vi.format.bytesPerSample == 4)
-                        imageFormat.image_channel_data_type = CL_UNSIGNED_INT32;
-                } else {
-                    if (d->vi.format.bytesPerSample == 2)
-                        imageFormat.image_channel_data_type = CL_HALF_FLOAT;
-                    else if (d->vi.format.bytesPerSample == 4)
-                        imageFormat.image_channel_data_type = CL_FLOAT;
+                    auto kernel = d->program.create_kernel("filter");
+
+                    auto src =  compute::image2d { d->context, static_cast<size_t>(dw ? d->vi.width / 2 + 8 : d->vi.width),
+                                           static_cast<size_t>(dh ? d->vi.height / 2 + 8 : d->vi.height),
+                                           compute::image_format { imageFormat },
+                                           CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY };
+
+                    auto dst = compute::image2d { d->context, static_cast<size_t>(d->vi.width), static_cast<size_t>(d->vi.height),
+                                           compute::image_format { imageFormat },
+                                           CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY };
+
+                    auto tmp = (dh && dw) ? compute::image2d { d->context,
+                                                                  static_cast<size_t>(std::max(d->vi.width, d->vi.height)),
+                                                                  static_cast<size_t>(std::max(d->vi.width, d->vi.height)),
+                                                                  compute::image_format { imageFormat },
+                                                                  CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS }
+                                             : compute::image2d {};
+
+                    d->per_thread_data.emplace(threadId, PerThreadData(queue,kernel,src,dst,tmp));
+                } catch (const std::string &error) {
+                    vsapi->setFilterError(("NNEDI3: " + error).c_str(), frameCtx);
+                    return nullptr;
+                } catch (const compute::opencl_error &error) {
+                    vsapi->setFilterError(("NNEDI3: " + error.error_string()).c_str(), frameCtx);
+                    return nullptr;
                 }
-
-                d->kernel.emplace(threadId, d->program.create_kernel("filter"));
-
-                d->src.emplace(
-                    threadId,
-                    compute::image2d { d->context, static_cast<size_t>(dw ? d->vi.width / 2 + 8 : d->vi.width),
-                                       static_cast<size_t>(dh ? d->vi.height / 2 + 8 : d->vi.height),
-                                       compute::image_format { imageFormat },
-                                       CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY }
-                );
-
-                d->dst.emplace(
-                    threadId,
-                    compute::image2d { d->context, static_cast<size_t>(d->vi.width), static_cast<size_t>(d->vi.height),
-                                       compute::image_format { imageFormat },
-                                       CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY }
-                );
-
-                d->tmp.emplace(
-                    threadId, (dh && dw) ? compute::image2d { d->context,
-                                                              static_cast<size_t>(std::max(d->vi.width, d->vi.height)),
-                                                              static_cast<size_t>(std::max(d->vi.width, d->vi.height)),
-                                                              compute::image_format { imageFormat },
-                                                              CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS }
-                                         : compute::image2d {}
-                );
-            } catch (const std::string &error) {
-                vsapi->setFilterError(("NNEDI3: " + error).c_str(), frameCtx);
-                return nullptr;
-            } catch (const compute::opencl_error &error) {
-                vsapi->setFilterError(("NNEDI3: " + error.error_string()).c_str(), frameCtx);
-                return nullptr;
             }
+            ptd = &d->per_thread_data.at(threadId);
         }
-
         std::unique_ptr<const VSFrame, decltype(vsapi->freeFrame)> prop_src(vsapi->getFrameFilter(d->field > 1 ? n / 2 : n, d->prop_node.get(), frameCtx), vsapi->freeFrame);
         std::unique_ptr<const VSFrame, decltype(vsapi->freeFrame)> src(vsapi->getFrameFilter(d->field > 1 ? n / 2 : n, d->node.get(), frameCtx), vsapi->freeFrame);
 
@@ -192,16 +188,16 @@ static const VSFrame *VS_CC nnedi3GetFrame(
         try {
             if (d->vi.format.sampleType == stFloat) {
                 if (d->vi.format.bytesPerSample == 2)
-                    filter<half, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, vsapi);
+                    filter<half, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, ptd, vsapi);
                 else if (d->vi.format.bytesPerSample == 4)
-                    filter<float, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, vsapi);
+                    filter<float, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, ptd, vsapi);
             } else {
                 if (d->vi.format.bytesPerSample == 1)
-                    filter<uint8_t, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, vsapi);
+                    filter<uint8_t, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, ptd, vsapi);
                 else if (d->vi.format.bytesPerSample == 2)
-                    filter<uint16_t, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, vsapi);
+                    filter<uint16_t, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, ptd, vsapi);
                 else if (d->vi.format.bytesPerSample == 2)
-                    filter<uint32_t, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, vsapi);
+                    filter<uint32_t, dw, dh, transpose_first>(src.get(), dst.get(), field_n, d, ptd, vsapi);
             }
         } catch (const compute::opencl_error &error) {
             vsapi->setFilterError(("NNEDI3: " + error.error_string()).c_str(), frameCtx);
@@ -365,11 +361,7 @@ void VS_CC nnedi3Create(const VSMap *in, VSMap *out, void *userData, VSCore *cor
         VSCoreInfo info;
         vsapi->getCoreInfo(core, &info);
 
-        d->queue.reserve(info.numThreads);
-        d->kernel.reserve(info.numThreads);
-        d->src.reserve(info.numThreads);
-        d->dst.reserve(info.numThreads);
-        d->tmp.reserve(info.numThreads);
+        d->per_thread_data.reserve(info.numThreads);
 
         if (d->field > 1) {
             if (d->vi.numFrames > INT_MAX / 2)
