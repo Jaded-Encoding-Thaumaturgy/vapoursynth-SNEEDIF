@@ -26,10 +26,10 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
         "qual:int:opt;"
         "etype:int:opt;"
         "pscrn:int:opt;"
-        "transpose_first:int:opt;",
+        "transpose_first:int:opt;"
         // "float16_data:int:opt;"
         // "float16_weights:int:opt;"
-        "device:int:opt;"
+        "device:int:opt;",
         "clip:vnode;", nnedi3Create, (void *) plugin, plugin
     );
 
