@@ -1,7 +1,7 @@
 project('SNEEDIF', 'cpp',
   default_options : ['buildtype=release', 'b_ndebug=if-release', 'cpp_std=c++20'],
   meson_version : '>=0.51.0',
-  version : '8'
+  version : '3'
 )
 
 add_project_arguments('-ffast-math', '-DNNEDI3_DATADIR="@0@"'.format(join_paths(get_option('prefix'), get_option('datadir'), meson.project_name())), language : 'cpp')
