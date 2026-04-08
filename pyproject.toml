@@ -1,0 +1,64 @@
+[build-system]
+requires = [
+    "hatchling>=1.27.0",
+    "vapoursynth>=74",
+    "meson",
+    "ninja",
+    "packaging",
+]
+build-backend = "hatchling.build"
+
+[project]
+name = "vapoursynth-sneedif"
+dynamic = ["version"]
+description = "Video/Image filter to undo upscaling."
+readme = "README.md"
+license = "WTFPL AND GPL-3.0-or-later AND BSD-3-Clause"
+license-files = [
+    "LICENSE",
+    "SNEEDIF/vectorclass/license.txt",
+    "SNEEDIF/half_float/LICENSE",
+]
+requires-python = ">=3.12"
+authors = [{ name = "Setsugen no ao", email = "setsugen@setsugen.dev" }]
+maintainers = [
+    { name = "Jaded Encoding Thaumaturgy", email = "jaded.encoding.thaumaturgy@gmail.com" },
+]
+dependencies = ["vapoursynth>=74"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "License :: OSI Approved :: BSD License",
+    "Topic :: Multimedia :: Video",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+]
+
+[dependency-groups]
+dev = ["hatchling>=1.27.0", "packaging"]
+
+[project.urls]
+"Source Code" = "https://github.com/Jaded-Encoding-Thaumaturgy/vapoursynth-SNEEDIF"
+"Bug Tracker" = "https://github.com/Jaded-Encoding-Thaumaturgy/vapoursynth-SNEEDIF/issues"
+"Contact" = "https://discord.gg/XTpc6Fa9eB"
+
+[tool.hatch.version]
+path = "meson.build"
+pattern = "version : '(?P<version>\\d*)'"
+
+[tool.hatch.build.targets.sdist]
+include = ["asset", "SNEEDIF", "meson.build"]
+
+[tool.hatch.build.targets.wheel]
+include = ["vapoursynth/plugins"]
+artifacts = [
+    "vapoursynth/plugins/*.dylib",
+    "vapoursynth/plugins/*.so",
+    "vapoursynth/plugins/*.dll",
+    "vapoursynth/plugins/*.bin",
+]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "hatch_hooks.py"
