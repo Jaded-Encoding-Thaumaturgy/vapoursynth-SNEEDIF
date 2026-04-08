@@ -6,7 +6,7 @@ on:
       - 'asset/**'
       - 'SNEEDIF/**'
       - 'meson.build'
-      - '.github/workflows/windows.yml'
+      - '.github/workflows/*.yml'
   workflow_dispatch:
 
 jobs:
@@ -19,13 +19,13 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 1
 
     - uses: msys2/setup-msys2@v2
       with:
-        msystem: mingw64
+        msystem: UCRT64
         update: true
         pacboy: >-
           cmake:p
@@ -42,7 +42,7 @@ jobs:
         meson compile -C builddir
 
     - name: Upload
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: SNEEDIF-win64
         path: builddir/libsneedif.dll
