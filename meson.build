@@ -1,11 +1,13 @@
 project('SNEEDIF', 'cpp',
   default_options : ['buildtype=release', 'b_ndebug=if-release', 'cpp_std=c++20'],
-  meson_version : '>=0.51.0',
+  meson_version : '>=0.64.0',
   version : '3'
 )
 
 add_project_arguments('-ffast-math', '-DNNEDI3_DATADIR="@0@"'.format(join_paths(get_option('prefix'), get_option('datadir'), meson.project_name())), language : 'cpp')
 add_project_arguments('-Wno-unused-variable', '-Wno-ignored-attributes', '-Wno-sign-compare', '-Wno-narrowing', '-Wno-int-in-bool-context', '-ffast-math', language : 'cpp')
+add_project_arguments('-D_WIN32_WINNT=0x0A00', language: 'cpp') # Target Win10+
+add_project_arguments('-DCL_TARGET_OPENCL_VERSION=200', language: 'cpp') # Explicitly target OpenCL 2.0
 
 
 sources = [

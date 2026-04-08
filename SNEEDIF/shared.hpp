@@ -9,7 +9,11 @@
 #endif
 
 #ifndef CL_TARGET_OPENCL_VERSION
-#define CL_TARGET_OPENCL_VERSION 300
+#define CL_TARGET_OPENCL_VERSION 200
+#endif
+#include <CL/cl.h>
+#if !defined(mem_object)
+#define mem_object buffer
 #endif
 
 #include "half_float/umHalf.h"
