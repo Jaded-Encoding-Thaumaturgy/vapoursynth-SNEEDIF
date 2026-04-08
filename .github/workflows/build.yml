@@ -1,52 +1,123 @@
-name: Build (Windows / MSYS2)
+name: Build & Publish
 
 on:
   push:
-    paths:
-      - 'asset/**'
-      - 'SNEEDIF/**'
-      - 'meson.build'
-      - '.github/workflows/*.yml'
+    branches:
+      - master
+  pull_request:
+  release:
+    types: published
   workflow_dispatch:
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  build-wheel:
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            os: ubuntu-latest
+            container: quay.io/pypa/manylinux_2_28_x86_64
+          - arch: x86_64
+            os: windows-latest
+            container: "" # No container for Windows
+      fail-fast: false
 
-    defaults:
-      run:
-        shell: msys2 {0}
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    name: Build wheels on ${{ matrix.os }}${{ matrix.container != '' && ' (manylinux)' || '' }} (${{ matrix.arch }})
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
+      - uses: actions/checkout@v6
 
-    - uses: msys2/setup-msys2@v2
-      with:
-        msystem: UCRT64
-        update: true
-        pacboy: >-
-          cmake:p
-          meson:p
-          gcc:p
-          vapoursynth:p
-          boost:p
-          opencl-headers:p
-          opencl-icd:p
+      - name: Install uv (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Configure and build
-      run: |
-        meson setup builddir --buildtype release -Ddefault_library=static -Dcpp_link_args=-static
-        meson compile -C builddir
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          dnf config-manager --set-enabled powertools || dnf config-manager --set-enabled crb
+          dnf install -y \
+            cmake \
+            gcc-c++ \
+            boost-devel \
+            opencl-headers \
+            ocl-icd-devel \
+            git
 
-    - name: Upload
-      uses: actions/upload-artifact@v7
-      with:
-        name: SNEEDIF-win64
-        path: builddir/libsneedif.dll
+      - name: Set up MSYS2 (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          pacboy: >-
+            cmake:p
+            meson:p
+            ninja:p
+            pkgconf:p
+            gcc:p
+            boost:p
+            opencl-headers:p
+            opencl-icd:p
+            uv:p
 
-    - name: Dump Meson Debug Info
-      if: failure()
-      run: cat builddir/meson-logs/meson-log.txt
+      - name: Build wheels (Linux)
+        if: runner.os == 'Linux'
+        run: uv build --wheel
+
+      - name: Build wheels (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: uv build --wheel
+
+      - name: Repair wheels (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          for whl in dist/*.whl; do
+            auditwheel repair "$whl" -w repaired_wheels/
+          done
+          rm -rf dist/*.whl
+          mv repaired_wheels/*.whl dist/
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vapoursynth-sneedif-wheels-${{ runner.os }}-${{ matrix.arch }}
+          path: dist/*.whl
+
+  build-sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Build sdist
+        run: uv build --sdist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vapoursynth-sneedif-sdist
+          path: dist/*.tar.gz
+
+  publish:
+    name: Publish to PyPI
+    needs: [build-wheel, build-sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: vapoursynth-sneedif-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
