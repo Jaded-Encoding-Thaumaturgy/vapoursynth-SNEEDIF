@@ -1,6 +1,6 @@
 project('SNEEDIF', 'cpp',
   default_options : ['buildtype=release', 'b_ndebug=if-release', 'cpp_std=c++20'],
-  meson_version : '>=0.64.0',
+  meson_version : '>=1.10.0',
   version : '3'
 )
 
@@ -8,7 +8,6 @@ add_project_arguments('-ffast-math', '-DNNEDI3_DATADIR="@0@"'.format(join_paths(
 add_project_arguments('-Wno-unused-variable', '-Wno-ignored-attributes', '-Wno-sign-compare', '-Wno-narrowing', '-Wno-int-in-bool-context', '-ffast-math', language : 'cpp')
 add_project_arguments('-D_WIN32_WINNT=0x0A00', language: 'cpp') # Target Win10+
 add_project_arguments('-DCL_TARGET_OPENCL_VERSION=200', language: 'cpp') # Explicitly target OpenCL 2.0
-
 
 sources = [
   'SNEEDIF/SNEEDIF.cpp',
@@ -29,16 +28,24 @@ sources = [
   'SNEEDIF/vectorclass/vectori512e.h'
 ]
 
-vapoursynth_dep = dependency('vapoursynth').partial_dependency(compile_args : true, includes : true)
+py = import('python').find_installation(pure: false)
 
-boost_dep = dependency('boost', modules : ['filesystem'], static : true)
+r = run_command(
+    py,
+    '-c',
+    'import vapoursynth as vs; print(vs.get_include())',
+    check: true,
+)
+inc_vs = include_directories(r.stdout().strip())
+
+boost_dep = dependency('boost', modules : ['filesystem'], static : host_machine.system() == 'windows')
 
 opencl_dep = dependency('OpenCL', required : false)
 if not opencl_dep.found()
   opencl_dep = meson.get_compiler('cpp').find_library('OpenCL')
 endif
 
-deps = [vapoursynth_dep, boost_dep, opencl_dep]
+deps = [boost_dep, opencl_dep]
 
 if host_machine.system() == 'windows'
   deps += [meson.get_compiler('cpp').find_library('winpthread', static: true)]
@@ -50,5 +57,8 @@ endif
 
 shared_module('sneedif', sources,
   dependencies : deps,
+  include_directories : inc_vs,
+  install: true,
+  install_dir: py.get_install_dir() / 'vapoursynth/plugins',
   gnu_symbol_visibility : 'hidden'
 )
