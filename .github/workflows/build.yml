@@ -51,14 +51,14 @@ jobs:
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
         with:
-          msystem: UCRT64
+          msystem: CLANG64
           update: true
           pacboy: >-
             cmake:p
             meson:p
             ninja:p
             pkgconf:p
-            gcc:p
+            toolchain:p
             boost:p
             opencl-headers:p
             opencl-icd:p

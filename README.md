@@ -75,7 +75,7 @@ Requirements:
 2. Install dependencies:
 
    ```bash
-   pacman -S mingw-w64-ucrt-x86_64-{cmake,meson,ninja,pkgconf,gcc,boost,opencl-headers,opencl-icd,uv}
+   pacman -S mingw-w64-ucrt-x86_64-{cmake,meson,ninja,pkgconf,toolchain,boost,opencl-headers,opencl-icd,uv}
    ```
 
 3. Build the wheel:
