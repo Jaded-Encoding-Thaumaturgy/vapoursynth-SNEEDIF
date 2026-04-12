@@ -46,7 +46,7 @@ dev = ["hatchling>=1.27.0", "packaging"]
 
 [tool.hatch.version]
 path = "meson.build"
-pattern = "version : '(?P<version>\\d*)'"
+pattern = "version : '(?P<version>\\d*.\\d*)'"
 
 [tool.hatch.build.targets.sdist]
 include = ["asset", "SNEEDIF", "meson.build"]
