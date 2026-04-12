@@ -43,7 +43,7 @@ class CustomHook(BuildHookInterface[Any]):
             if file_path.is_file() and file_path.suffix in [".dll", ".so"]:
                 shutil.copy2(file_path, self.target_dir)
 
-        shutil.copy2(Path("asset/nnedi3_weights.bin"), self.target_dir)
+        shutil.copy2(Path("asset/sneedif_nnedi3_weights.bin"), self.target_dir)
 
     def finalize(self, version: str, build_data: dict[str, Any], artifact_path: str) -> None:
         shutil.rmtree(self.target_dir.parent, ignore_errors=True)
