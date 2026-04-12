@@ -49,10 +49,10 @@ path = "meson.build"
 pattern = "version : '(?P<version>\\d*.\\d*)'"
 
 [tool.hatch.build.targets.sdist]
-include = ["asset", "SNEEDIF", "meson.build"]
+include = ["asset", "SNEEDIF", "meson.build", "hatch_build.py"]
 
 [tool.hatch.build.targets.wheel]
-include = ["vapoursynth/plugins", ""]
+include = ["vapoursynth/plugins"]
 artifacts = [
     "vapoursynth/plugins/**/*.dylib",
     "vapoursynth/plugins/**/*.so",
@@ -61,4 +61,4 @@ artifacts = [
 ]
 
 [tool.hatch.build.targets.wheel.hooks.custom]
-path = "hatch_hooks.py"
+path = "hatch_build.py"
