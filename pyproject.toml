@@ -11,7 +11,7 @@ build-backend = "hatchling.build"
 [project]
 name = "vapoursynth-sneedif"
 dynamic = ["version"]
-description = "Video/Image filter to undo upscaling."
+description = "Intra-field only deinterlacer based on NNEDI3"
 readme = "README.md"
 license = "WTFPL AND GPL-3.0-or-later AND BSD-3-Clause"
 license-files = [
