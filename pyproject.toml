@@ -52,12 +52,12 @@ pattern = "version : '(?P<version>\\d*.\\d*)'"
 include = ["asset", "SNEEDIF", "meson.build"]
 
 [tool.hatch.build.targets.wheel]
-include = ["vapoursynth/plugins"]
+include = ["vapoursynth/plugins", ""]
 artifacts = [
-    "vapoursynth/plugins/*.dylib",
-    "vapoursynth/plugins/*.so",
-    "vapoursynth/plugins/*.dll",
-    "vapoursynth/plugins/*.bin",
+    "vapoursynth/plugins/**/*.dylib",
+    "vapoursynth/plugins/**/*.so",
+    "vapoursynth/plugins/**/*.dll",
+    "vapoursynth/plugins/**/*.bin",
 ]
 
 [tool.hatch.build.targets.wheel.hooks.custom]

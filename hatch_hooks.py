@@ -10,7 +10,7 @@ from packaging import tags
 
 class CustomHook(BuildHookInterface[Any]):
     source_dir = Path("build")
-    target_dir = Path("vapoursynth/plugins")
+    target_dir = Path("vapoursynth/plugins/sneedif")
 
     def initialize(self, version: str, build_data: dict[str, Any]) -> None:
         if self.source_dir.exists():
