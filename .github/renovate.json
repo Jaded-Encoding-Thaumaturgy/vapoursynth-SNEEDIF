@@ -1,31 +1,5 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "automerge": true,
-  "dependencyDashboard": true,
   "extends": [
-    "config:recommended"
-  ],
-  "schedule": [
-    "* 15 1 * *"
-  ],
-  "semanticCommits": "enabled",
-  "packageRules": [
-    {
-      "groupName": "Python dependencies",
-      "matchManagers": [
-        "pep621"
-      ]
-    },
-    {
-      "groupName": "GitHub Actions",
-      "matchManagers": [
-        "github-actions"
-      ]
-    },
-    {
-      "matchUpdateTypes": [
-        "patch"
-      ]
-    }
+    "github>Jaded-Encoding-Thaumaturgy/renovate-config:vsplugin.json"
   ]
 }
