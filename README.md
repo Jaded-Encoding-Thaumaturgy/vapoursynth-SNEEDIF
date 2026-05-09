@@ -61,8 +61,6 @@ Returns a dictionary containing detailed specifications for the specified `devic
 pip install vapoursynth-sneedif
 ```
 
-_Note: Only wheels for Linux and Windows 64-bit are provided._
-
 ## Compilation
 
 ### Windows
@@ -71,11 +69,11 @@ Requirements:
 
 - [MSYS2](https://www.msys2.org/)
 
-1. Open **MSYS2 UCRT64** terminal.
+1. Open **MSYS2 CLANG64** terminal.
 2. Install dependencies:
 
    ```bash
-   pacman -S mingw-w64-ucrt-x86_64-{cmake,meson,ninja,pkgconf,toolchain,boost,opencl-headers,opencl-icd,uv}
+   pacman -S mingw-w64-clang-x86_64-{cmake,meson,ninja,pkgconf,toolchain,boost,opencl-headers,opencl-icd,uv}
    ```
 
 3. Build the wheel:
@@ -98,6 +96,9 @@ Requirements:
 
    # Ubuntu / Debian
    apt install cmake g++ libboost-all-dev opencl-headers ocl-icd-opencl-dev
+
+   # Alpine
+   apk add cmake g++ boost-dev opencl-headers opencl-dev opencl git
    ```
 
 2. Build the wheel:
