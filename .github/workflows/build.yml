@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-wheel:
+  build-wheel-unix:
     strategy:
       fail-fast: false
       matrix:
@@ -23,8 +23,6 @@ jobs:
             os: macos-15-intel
           - arch: arm64
             os: macos-15
-          - arch: x86_64
-            os: windows-2025-vs2026
 
     runs-on: ${{ matrix.os }}
     name: Build wheels on ${{ matrix.os }} (${{ matrix.arch }})
@@ -32,14 +30,26 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Build wheels (Unix)
-        if: runner.os != 'Windows'
+      - name: Build wheels
         uses: pypa/cibuildwheel@v3.4.1
         with:
           extras: uv
+          output-dir: dist
 
-      - name: Set up MSYS2 (Windows)
-        if: runner.os == 'Windows'
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vapoursynth-sneedif-wheels-${{ runner.os }}-${{ matrix.arch }}
+          path: |
+            dist/*.whl
+
+  build-wheel-windows:
+    runs-on: windows-2025-vs2026
+    name: Build wheels on Windows x64
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up MSYS2
         uses: msys2/setup-msys2@v2
         with:
           msystem: CLANG64
@@ -55,17 +65,15 @@ jobs:
             opencl-icd:p
             uv:p
 
-      - name: Build wheels (Windows)
-        if: runner.os == 'Windows'
+      - name: Build wheels
         shell: msys2 {0}
         run: uv build
 
       - uses: actions/upload-artifact@v7
         with:
-          name: vapoursynth-sneedif-wheels-${{ runner.os }}-${{ matrix.arch }}
+          name: vapoursynth-sneedif-wheels-windows-x64
           path: |
             dist/*.whl
-            wheelhouse/*.whl
 
   build-sdist:
     name: Build source distribution
@@ -86,7 +94,7 @@ jobs:
 
   publish:
     name: Publish to PyPI
-    needs: [build-wheel, build-sdist]
+    needs: [build-wheel-unix, build-wheel-windows, build-sdist]
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
     environment: pypi
