@@ -3,7 +3,7 @@ project(
   'cpp',
   default_options: ['buildtype=release', 'b_ndebug=if-release', 'cpp_std=c++20'],
   meson_version: '>=1.10.0',
-  version: '4.2',
+  version: '4.3',
 )
 
 add_project_arguments(
